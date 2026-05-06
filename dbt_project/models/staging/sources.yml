@@ -1,0 +1,9 @@
+version: 2
+
+sources:
+  - name: raw
+    database: miguel-490720
+    schema: miguel_block3
+    tables:
+      - name: raw_orders
+        identifier: raw_orders

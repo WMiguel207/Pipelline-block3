@@ -1,0 +1,11 @@
+name: "pipeline_project"
+version: "1.0.0"
+config-version: 2
+
+profile: "default"
+
+model-paths: ["models"]
+
+models:
+  pipeline_project:
+    +materialized: table
