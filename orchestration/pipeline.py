@@ -1,12 +1,11 @@
 import logging
-import os
-from pickle import load
 import subprocess
 import sys
 from pathlib import Path
+
 from dotenv import load_dotenv
 
-load_dotenv()  # PRIMEIRO
+load_dotenv()
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
 if str(ROOT_DIR) not in sys.path:
@@ -14,29 +13,32 @@ if str(ROOT_DIR) not in sys.path:
 
 from extraction.gcs_to_bq import run_extraction
 
+LOG_DIR = ROOT_DIR / "logs"
+LOG_DIR.mkdir(parents=True, exist_ok=True)
+
 logging.basicConfig(
-    filename="logs/pipeline.log",
+    filename=str(LOG_DIR / "pipeline.log"),
     level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s"
+    format="%(asctime)s - %(levelname)s - %(message)s",
 )
 
-def run_dbt():
-    root = Path(__file__).resolve().parents[1]
 
-    dbt_project_dir = root / "dbt_project"
-    profiles_dir = root / "config"
+def run_dbt():
+    dbt_project_dir = ROOT_DIR / "dbt_project"
+    profiles_dir = ROOT_DIR / "config"
 
     subprocess.run(
         ["dbt", "run", "--profiles-dir", str(profiles_dir)],
         check=True,
-        cwd=str(dbt_project_dir)
+        cwd=str(dbt_project_dir),
     )
 
     subprocess.run(
         ["dbt", "test", "--profiles-dir", str(profiles_dir)],
         check=True,
-        cwd=str(dbt_project_dir)
+        cwd=str(dbt_project_dir),
     )
+
 
 def main():
     try:
@@ -48,9 +50,10 @@ def main():
         run_dbt()
         logging.info("DBT completed")
 
-    except Exception as e:
-        logging.exception("Pipeline failed: %s", str(e))
+    except Exception as error:
+        logging.exception("Pipeline failed: %s", str(error))
         raise
+
 
 if __name__ == "__main__":
     main()

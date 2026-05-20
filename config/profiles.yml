@@ -7,4 +7,4 @@ default:
       project: miguel-490720
       dataset: miguel_block3
       threads: 1
-      keyfile: C:\Users\migue\Downloads\key.json
+      keyfile: "{{ env_var('GOOGLE_APPLICATION_CREDENTIALS') }}"

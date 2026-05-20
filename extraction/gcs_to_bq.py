@@ -1,13 +1,18 @@
 import logging
 import os
 import re
-from dotenv import load_dotenv
-load_dotenv()
 
+from dotenv import load_dotenv
 from google.cloud import bigquery, storage
 
+load_dotenv()
+
 path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
-print("EXISTS on gcp_to_bq:", os.path.exists(path))
+if not path:
+    raise ValueError("Missing GOOGLE_APPLICATION_CREDENTIALS environment variable.")
+if not os.path.exists(path):
+    raise FileNotFoundError(f"Credentials file not found: {path}")
+
 
 def list_files(bucket_name, prefix):
     client = storage.Client()
@@ -21,6 +26,7 @@ def sanitize_table_name(name):
     cleaned = re.sub(r"_+", "_", cleaned).strip("_").lower()
     return cleaned
 
+
 def load_to_staging(uri, table_id):
     client = bigquery.Client()
 
@@ -28,17 +34,29 @@ def load_to_staging(uri, table_id):
         source_format=bigquery.SourceFormat.CSV,
         autodetect=True,
         skip_leading_rows=1,
-        write_disposition="WRITE_TRUNCATE",  # sempre limpa staging
+        write_disposition="WRITE_TRUNCATE",
     )
 
     load_job = client.load_table_from_uri(uri, table_id, job_config=job_config)
     load_job.result()
 
 
-    load_job = client.load_table_from_uri(uri, table_id, job_config=job_config)
-    load_job.result()
+def ensure_orders_table(target_table):
+    client = bigquery.Client()
+    query = f"""
+    CREATE TABLE IF NOT EXISTS `{target_table}` (
+      order_id INT64,
+      customer_id INT64,
+      status STRING,
+      order_date TIMESTAMP,
+      total_amount NUMERIC,
+      shipping_country STRING
+    )
+    """
+    client.query(query).result()
 
-def merge_orders(dataset, staging_table, target_table):
+
+def merge_orders(staging_table, target_table):
     client = bigquery.Client()
 
     query = f"""
@@ -50,14 +68,17 @@ def merge_orders(dataset, staging_table, target_table):
       UPDATE SET
         customer_id = S.customer_id,
         status = S.status,
-        order_date = S.order_date
+        order_date = S.order_date,
+        total_amount = S.total_amount,
+        shipping_country = S.shipping_country
 
     WHEN NOT MATCHED THEN
-      INSERT (order_id, customer_id, status, order_date)
-      VALUES (S.order_id, S.customer_id, S.status, S.order_date)
+      INSERT (order_id, customer_id, status, order_date, total_amount, shipping_country)
+      VALUES (S.order_id, S.customer_id, S.status, S.order_date, S.total_amount, S.shipping_country)
     """
 
     client.query(query).result()
+
 
 def run_extraction():
     bucket = os.getenv("GCS_BUCKET", "outcoder-miguel-block3-source")
@@ -86,11 +107,12 @@ def run_extraction():
 
             load_to_staging(uri, staging_table)
 
-            # só faz MERGE se for orders
             if table_name == "orders":
-                merge_orders(dataset, staging_table, target_table)
+                ensure_orders_table(target_table)
+                merge_orders(staging_table, target_table)
+                loaded_count += 1
             else:
-                load_to_staging(uri, target_table)  # fallback simples
+                load_to_staging(uri, target_table)
                 loaded_count += 1
         except Exception:
             logging.exception("Failed loading file %s into %s", file, table_id)

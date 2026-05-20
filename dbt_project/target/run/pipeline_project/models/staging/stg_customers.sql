@@ -11,9 +11,9 @@
     OPTIONS()
     as (
       select distinct
-    customer_id,
-    'Unknown' as country
-from `miguel-490720`.`miguel_block3`.`stg_orders`
+    cast(customer_id as int64) as customer_id,
+    cast(country as string) as country
+from `miguel-490720`.`miguel_block3`.`raw_customers`
 where customer_id is not null
     );
   
